@@ -98,9 +98,7 @@ def td_error_scorer(algo: AlgoProtocol, episodes: List[Episode]) -> float:
 
             # estimate values for next observations
             next_actions = algo.predict(batch.next_observations)
-            next_values = algo.predict_value(
-                batch.next_observations, next_actions
-            )
+            next_values = algo.predict_value(batch.next_observations, next_actions)
 
             # calculate td errors
             mask = (1.0 - np.asarray(batch.terminals)).reshape(-1)
@@ -147,9 +145,7 @@ def discounted_sum_of_advantage_scorer(
     for episode in episodes:
         for batch in _make_batches(episode, WINDOW_SIZE, algo.n_frames):
             # estimate values for dataset actions
-            dataset_values = algo.predict_value(
-                batch.observations, batch.actions
-            )
+            dataset_values = algo.predict_value(batch.observations, batch.actions)
             dataset_values = cast(np.ndarray, dataset_values)
 
             # estimate values for the current policy
@@ -202,9 +198,7 @@ def average_value_estimation_scorer(
     return float(np.mean(total_values))
 
 
-def value_estimation_std_scorer(
-    algo: AlgoProtocol, episodes: List[Episode]
-) -> float:
+def value_estimation_std_scorer(algo: AlgoProtocol, episodes: List[Episode]) -> float:
     r"""Returns standard deviation of value estimation.
 
     This metrics suggests how confident Q functions are for the given
@@ -339,9 +333,7 @@ def soft_opc_scorer(
     return scorer
 
 
-def continuous_action_diff_scorer(
-    algo: AlgoProtocol, episodes: List[Episode]
-) -> float:
+def continuous_action_diff_scorer(algo: AlgoProtocol, episodes: List[Episode]) -> float:
     r"""Returns squared difference of actions between algorithm and dataset.
 
     This metrics suggests how different the greedy-policy is from the given
@@ -370,9 +362,7 @@ def continuous_action_diff_scorer(
     return float(np.mean(total_diffs))
 
 
-def discrete_action_match_scorer(
-    algo: AlgoProtocol, episodes: List[Episode]
-) -> float:
+def discrete_action_match_scorer(algo: AlgoProtocol, episodes: List[Episode]) -> float:
     r"""Returns percentage of identical actions between algorithm and dataset.
 
     This metrics suggests how different the greedy-policy is from the given
@@ -447,9 +437,7 @@ def evaluate_on_environment(
 
     def scorer(algo: AlgoProtocol, *args: Any) -> float:
         if is_image:
-            stacked_observation = StackedObservation(
-                observation_shape, algo.n_frames
-            )
+            stacked_observation = StackedObservation(observation_shape, algo.n_frames)
 
         episode_rewards = []
         for _ in range(n_trials):
@@ -576,3 +564,17 @@ def dynamics_prediction_variance_scorer(
             pred = cast(Tuple[np.ndarray, np.ndarray, np.ndarray], pred)
             total_variances += pred[2].tolist()
     return float(np.mean(total_variances))
+
+
+def evaluate_true_q(algo: AlgoProtocol, episodes: List[Episode]) -> float:
+    for episode in episodes:
+        for batch in _make_batches(episode, WINDOW_SIZE, algo.n_frames):
+            # estimate values for next observations
+            next_actions = algo.predict([batch.next_observations[0]])
+            next_values = algo.predict_value([batch.next_observations[0]], next_actions)
+            mask = (1.0 - np.asarray(batch.terminals)).reshape(-1)
+            rewards = np.asarray(batch.rewards).reshape(-1)
+            if algo.reward_scaler:
+                rewards = algo.reward_scaler.transform_numpy(rewards)
+            y = rewards + algo.gamma * cast(np.ndarray, next_values) * mask
+    return float(np.mean(y))
